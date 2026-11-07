@@ -24,7 +24,10 @@ It runs today on:
 - **Arrow Lake** (Core Ultra 9 275HX, `8086:7D67`): our test laptop, a Lenovo Legion 5 15IAX10, and a second 275HX
   laptop ([ArrowWhatever](https://github.com/Mountainatic/ArrowWhatever)).
 - **Meteor Lake** (Core Ultra 7 155H, `8086:7D55`): a tester has Metal running on Sequoia with the XeGfx kernel driver
-  unchanged and a few framebuffer and plugin tweaks of their own.
+  unchanged and a few framebuffer and plugin tweaks of their own. A second one, on a ThinkBook 14+, runs WindowServer
+  on 0.0.47 after moving the boot framebuffer's GGTT mapping ([#13](https://github.com/watchthelight-labs/WTLIntelGfx/issues/13), [notes](https://github.com/samwu07/xegfx-thinkbook14plus-mtl)).
+- **Arrow Lake-H** (Core Ultra 7 255H, `8086:7D51`): a tester runs a desktop on a 3120x2080 panel, copying every frame
+  for now ([#14](https://github.com/watchthelight-labs/WTLIntelGfx/issues/14)).
 
 It's still a test driver. One kernel panic under heavy disk reads is open (see [Status](#status-2026-10-28)), so try it
 on a Mac you can afford to reboot, not one you depend on. Downloads are on the
@@ -41,12 +44,12 @@ from your machine, working or not, is the most useful thing you can send ([issue
 
 | Family | Example PCI IDs (8086:) | Graphics | State |
 |---|---|---|---|
-| Arrow Lake-S / HX (Core Ultra 200S, 200HX) | 7D67 | Xe-LPG | **runs**: Metal, Vulkan, accelerated desktop (two laptops) |
-| Meteor Lake (Core Ultra 100H, 100U) | 7D55, 7DD5, 7D45, 7D40 | Xe-LPG | **runs**: Metal on a 155H (tester report, Sequoia) |
-| Arrow Lake-H / U (Core Ultra 200H, 200U) | 7D51, 7DD1, 7D41 | Xe-LPG(+) | untested; same GuC firmware as 7D67, so the closest match |
-| Tiger Lake (11th gen Core) | 9A49, 9A40, 9A78, 9A60 | Xe-LP (Iris Xe, UHD) | untested; needs its own GuC firmware linked in |
-| Alder Lake, Raptor Lake (12th to 14th gen mobile) | 46A6, 46A3, 46A8, 4688, A7A0, A7A8, A788 | Xe-LP (Iris Xe, UHD) | stage 2 probe passes on 46A6 and stages 1 to 3 on 46A3 (tester reports); later stages need their own GuC firmware |
-| Intel Arc A-series (Alchemist) | 56A0, 56A1, 5690 | Xe-HPG | untested |
+| Arrow Lake-S / HX (Core Ultra 200S, 200HX) | 7D67 | Xe-LPG | **runs**: Metal, Vulkan, accelerated desktop (two laptops); stages 1 to 6 on a Z890 desktop with an AMD card driving the display ([#15](https://github.com/watchthelight-labs/WTLIntelGfx/issues/15)) |
+| Meteor Lake (Core Ultra 100H, 100U) | 7D55, 7DD5, 7D45, 7D40 | Xe-LPG | **runs**: Metal on two 155H laptops (tester reports, Sequoia) |
+| Arrow Lake-H / U (Core Ultra 200H, 200U) | 7D51, 7DD1, 7D41 | Xe-LPG(+) | **runs**: desktop on a 255H with frames copied, not flipped (tester report, [#14](https://github.com/watchthelight-labs/WTLIntelGfx/issues/14)) |
+| Tiger Lake (11th gen Core) | 9A49, 9A40, 9A78, 9A60 | Xe-LP (Iris Xe, UHD) | stage 2 probe passes on 9A60 and 9A49 (tester reports); later stages need its own GuC firmware linked in |
+| Alder Lake, Raptor Lake (12th to 14th gen mobile) | 46A6, 46A3, 46A8, 4688, A7A0, A7A8, A788 | Xe-LP (Iris Xe, UHD) | stage 2 probe passes on 46A6 and on A788 in discrete mode, stages 1 to 3 on 46A3 (tester reports); later stages need their own GuC firmware |
+| Intel Arc A-series (Alchemist) | 56A0, 56A1, 5690 | Xe-HPG | stages 1 and 2 pass on an A770 passed through to a VM; stage 3 needs `xegfx.pci_scan_all=1` because the card is not on bus 0 ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6662851589)) |
 | Lunar Lake, Battlemage, Panther Lake | 64A0, E20B, E20C | Xe2 and later | needs the xe driver, not i915 ([issue #8](https://github.com/watchthelight-labs/WTLIntelGfx/issues/8)) |
 
 If your Tiger Lake, Alder Lake or Raptor Lake laptop only needs its panel to work, look at [WhateverXe](https://github.com/b00t0x/WhateverXe) and [NootedGreen](https://github.com/sgiammori/NootedGreen) first. They run Apple's own Tiger Lake driver on your GPU and are further along on those chips. XeGfx exists because that route does not reach Meteor Lake, Arrow Lake or Arc, and because a driver built from i915 can follow Intel's Linux support to new chips.
@@ -127,12 +130,15 @@ XeGfx is built on other people's work. Thanks to all of them.
 | [wallali77666-cyber/iris-xe-macos-driver](https://github.com/wallali77666-cyber/iris-xe-macos-driver) | a NullMoth-style stack aimed at Tiger Lake |
 | [zep245/IrisXe-macos-driver](https://github.com/zep245/IrisXe-macos-driver) | i915 and Mesa ANV running on Tiger Lake under Sequoia through NullMoth's Intel path; sandboxed apps see no GPU because the sandbox refuses `opendir(/dev/dri)`, and the in-kernel LinuxKPI panics it ran into (thread_call limits, `cond_resched` inside `ggtt_pin`, TLB flush timeouts); in 1.0.0 (October 2026) scaled desktops through i915's panel fitter by giving a modeset the panel's timing with a smaller source, the hardware cursor plane, page flips instead of copies, NVRAM breadcrumbs that made each flip take about 700 ms, and the plugin's one-time copy of small no-copy textures that hid typed letters; in 1.0.1 (October 2026) Tahoe icons back on the GPU after finding that buffer textures were refused on ANV's memory types (the same cause as our I-120, found independently), and per-function constant spaces for linked visible functions |
 | [CENSEDAXIS20025/ASUS-FX608LP-Hackintosh-Multiboot](https://github.com/CENSEDAXIS20025/ASUS-FX608LP-Hackintosh-Multiboot) | the same Core Ultra 9 275HX, 7D67 iGPU and RTX 5070 Laptop running macOS on the RTX with the iGPU blocked and the MUX set to discrete only |
-| [Mountainatic/ArrowWhatever](https://github.com/Mountainatic/ArrowWhatever) | the same Core Ultra 9 275HX and 7D67 iGPU with an RTX 5080 Laptop on XeGfx 0.0.44, with ten patches of their own: a pin versus last-unwire race in userptr buffers, GGTT zero-copy scanout with a flip deferred until the GPU is idle (about 60 fps at 2560x1600, up from about 15), and the panel timing read from BAR0. Their userptr panic and fix (patch 0001) is the same bug we hit as I-121 and fixed in 0.0.46, found independently. Patch 0009 lets WindowServer submit without waiting and flips only once the engines are idle, which took the desktop to about 60 fps. We have not taken a patch yet |
+| [Mountainatic/ArrowWhatever](https://github.com/Mountainatic/ArrowWhatever) | the same Core Ultra 9 275HX and 7D67 iGPU with an RTX 5080 Laptop on XeGfx 0.0.44, with ten patches of their own: a pin versus last-unwire race in userptr buffers, GGTT zero-copy scanout with a flip deferred until the GPU is idle (about 60 fps at 2560x1600, up from about 15), and the panel timing read from BAR0. Their userptr panic and fix (patch 0001) is the same bug we hit as I-121 and fixed in 0.0.46, found independently. Patch 0009 lets WindowServer submit without waiting and flips only once the engines are idle, which took the desktop to about 60 fps. Patches 0008 and 0009 are ported to the `xe-zerocopy-flip` branch, adapted to a per-surface wait (built, not booted or released yet) |
 | [victorwitkamp/NootedGreen](https://github.com/victorwitkamp/NootedGreen) (branch `raptor-lake-hx`) | a NootedGreen fork for Raptor Lake-HX that ports i915 forcewake, pipe VDSC and the render engine workarounds; its owner reports Metal on a ROG Strix G814JI |
 | [samranahmad09/WhateverXe-RaptorLakeP](https://github.com/samranahmad09/WhateverXe-RaptorLakeP) | checking a bring-up by capturing i915's registers on Linux next to a macOS readout, and a blitter ring self-test |
 | [lutzbichler/drm-kmod](https://github.com/lutzbichler/drm-kmod) (xe patches) and [drm-kmod #316](https://github.com/freebsd/drm-kmod/issues/316) | the state of the xe driver outside Linux |
 | [drm-kmod #315](https://github.com/freebsd/drm-kmod/issues/315), [#418](https://github.com/freebsd/drm-kmod/pull/418), [#468](https://github.com/freebsd/drm-kmod/pull/468) | LinuxKPI bugs FreeBSD already fixed for Meteor Lake and Arc, to carry over |
 | [openbsd/src](https://github.com/openbsd/src) inteldrm | attaching i915 in stages and deferring the heavy probe |
+| [samwu07/xegfx-thinkbook14plus-mtl](https://github.com/samwu07/xegfx-thinkbook14plus-mtl) | Meteor Lake on 0.0.47: a boot framebuffer that starts below the GuC's GGTT top makes `reserve_bootfb` refuse it (-28 on a 3072x1920 panel), and moving its GGTT mapping before XeGfx loads gets WindowServer and Metal up; also a zero-copy flip on that machine |
+| [ericek111/vibe-nullmoth-xe3-qemu](https://github.com/ericek111/vibe-nullmoth-xe3-qemu) | NullMoth's xe port running Panther Lake (Xe3) as an SR-IOV function in QEMU, and the port bugs it fixed on the way: runtime PM stubs that dropped every GuC reply, kernel maps of non-contiguous buffers, MSI on the function (no licence yet, so notes only) |
+| [InSnh-Gd/WTLIntelGfx](https://github.com/InSnh-Gd/WTLIntelGfx) (PR #1) | a plan for a bare-metal Panther Lake xe port on this tree, with a triage of the 115 patches above into bare-metal, VF-only and not needed |
 | [acidanthera/WhateverGreen](https://github.com/acidanthera/WhateverGreen) and [OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) | the Intel framebuffer background every Hackintosh graphics project builds on |
 
 **Testers** (reports from machines other than ours; every result counts, working or not):
@@ -142,11 +148,25 @@ XeGfx is built on other people's work. Thanks to all of them.
 | [zsct648gn6-dev](https://github.com/zsct648gn6-dev) | Lenovo Legion Y9000P 2022, i7-12700H, `46A6` | stage 2 probe passes on 0.0.46 ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6538047492)) |
 | [TrDiTu](https://github.com/TrDiTu) | HP Victus 15, i7-12650H, `46A3` | stages 1 to 3 pass; stage 4 panicked in the PCH lookup, fixed in 0.0.47 ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6529881723)) |
 | [ductruongvu23](https://github.com/ductruongvu23) | Gigabyte Gaming A16, i7-13620H, `A7A8` | an iGPU in a discrete-mode MUX shows up as class 0380, which the probe missed until 0.0.47 |
-| [UNDERDOG07](https://github.com/UNDERDOG07) | Lenovo Legion Y7000P IRX10, i7-14650HX, `A788` | device data for the 32 EU Raptor Lake-HX part, class 0380 in discrete mode |
-| [HAOoool](https://github.com/HAOoool) | Dell G15 5511, i7-11800H, `9A60` | Tiger Lake-H device data; discrete mode removes the iGPU from ACPI and PCI |
+| [UNDERDOG07](https://github.com/UNDERDOG07) | Lenovo Legion Y7000P IRX10, i9-14900HX, `A788` | device data for the 32 EU Raptor Lake-HX part, class 0380 in discrete mode; stage 2 passes on 0.0.47 in discrete mode, the first check of that fix ([#12](https://github.com/watchthelight-labs/WTLIntelGfx/issues/12)) |
+| [HAOoool](https://github.com/HAOoool) | Dell G15 5511, i7-11800H, `9A60` | Tiger Lake-H device data; discrete mode removes the iGPU from ACPI and PCI; stage 2 passes in hybrid mode on 0.0.46 |
 | [559911](https://github.com/559911) | Mechrevo GM6AR57C, i7-12800HX, `4688` | Alder Lake-HX device data, with WhateverXe 0.6.1 for comparison |
-| [Mochen-wu](https://github.com/Mochen-wu) | ROG Strix G16 G614JVR, i9-14900HX, `A788` | Raptor Lake-HX device data on Tahoe 26.7.2 |
+| [Mochen-wu](https://github.com/Mochen-wu) | ROG Strix G16 G614JVR, i9-14900HX, `A788` | Raptor Lake-HX device data on Tahoe 26.7.2; stage 2 in discrete mode, where memory decoding is off and the probe reads IDs and BARs only |
 | [phmthnh](https://github.com/phmthnh) | Acer Nitro AN515-58, i5-12500H, `46A6` | Linux topology, stolen memory and firmware versions |
+| [7HE-W0R1D](https://github.com/7HE-W0R1D) | Gigabyte Z890M Aorus Elite, Core Ultra 7 265K, `7D67` | stage 2 passes on a desktop with an RTX 4070 SUPER as the primary GPU ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6546158307)) |
+| [WilliamAlexanda](https://github.com/WilliamAlexanda) | RedmiBook Pro 15 2021, i5-11300H, `9A49` | stage 2 passes on 0.0.47, the first Iris Xe run; notes on zep245's Tiger Lake driver and raising DVMT ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6567979501)) |
+| [17715748568](https://github.com/17715748568) | RedmiBook Pro 15 2021, i5-11300H, `9A49` | Tiger Lake device data, and the 60 MB DVMT limit on the WhateverXe route |
+| [cxaiverb](https://github.com/cxaiverb) | Intel Arc A770 (`56A0`) in a Proxmox VM | stages 1 and 2 pass; found that stage 3 only scans bus 0 and that `debug.xegfx_env` replaces the defaults ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6662851589)) |
+| [saspol](https://github.com/saspol) | Gigabyte Z890 Aorus Elite WiFi7, Core Ultra 7 265K, `7D67` | stages 1 to 6 pass with SIP on and an RX 6900 XT driving the displays, the first desktop run ([#15](https://github.com/watchthelight-labs/WTLIntelGfx/issues/15)) |
+| [samwu07](https://github.com/samwu07) | Lenovo ThinkBook 14+ 2024, Core Ultra 7 155H, `7D55` | stages 1 to 3 pass, stage 4 refuses a boot framebuffer below the GuC top; WindowServer and Metal on 0.0.47 with his framebuffer move ([#13](https://github.com/watchthelight-labs/WTLIntelGfx/issues/13)) |
+| [change-48](https://github.com/change-48) | HONOR MagicBook Art 14 2025, Core Ultra 7 255H, `7D51` | the first Arrow Lake-H desktop, and a 3120-wide panel whose rows are padded past the scanout stride ([#14](https://github.com/watchthelight-labs/WTLIntelGfx/issues/14)) |
+| [lemlnn](https://github.com/lemlnn) | Panther Lake laptop, `B082` | Xe3 device and firmware data; past ExitBootServices with VT-d off and DMAR dropped ([#11](https://github.com/watchthelight-labs/WTLIntelGfx/issues/11)) |
+| [jixx-choi](https://github.com/jixx-choi) | Razer Blade 18 2024, i9-14900HX, `A788` | with the MUX on discrete the iGPU leaves PCI entirely |
+| [cells114514](https://github.com/cells114514) | HP OMEN, i7-14650HX | the same: no iGPU node at all in discrete mode |
+| [bafcz](https://github.com/bafcz) | Lenovo Legion Y9000P IRX8, `A788` | Raptor Lake-HX device data |
+| [sulthonuladib](https://github.com/sulthonuladib) | HP Victus 15-fa0xxx, `46A6` | Alder Lake-P device data on a laptop with no MUX |
+| [nidemimihihi](https://github.com/nidemimihihi) | TOPC desktop board with a mobile i7-14650HX | device data and BIOS graphics settings from a mobile-on-desktop board |
+| [pubglite55](https://github.com/pubglite55) | ASUS ROG Zephyrus M16 GU603ZM, i7-12700H, `46A6` | Alder Lake-P configuration data |
 
 ## How it stays safe to test
 
