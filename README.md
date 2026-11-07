@@ -48,7 +48,7 @@ from your machine, working or not, is the most useful thing you can send ([issue
 | Meteor Lake (Core Ultra 100H, 100U) | 7D55, 7DD5, 7D45, 7D40 | Xe-LPG | **runs**: Metal on two 155H laptops (tester reports, Sequoia) |
 | Arrow Lake-H / U (Core Ultra 200H, 200U) | 7D51, 7DD1, 7D41 | Xe-LPG(+) | **runs**: desktop on a 255H with frames copied, not flipped (tester report, [#14](https://github.com/watchthelight-labs/WTLIntelGfx/issues/14)) |
 | Tiger Lake (11th gen Core) | 9A49, 9A40, 9A78, 9A60 | Xe-LP (Iris Xe, UHD) | stage 2 probe passes on 9A60 and 9A49 (tester reports); later stages need its own GuC firmware linked in |
-| Alder Lake, Raptor Lake (12th to 14th gen mobile) | 46A6, 46A3, 46A8, 4688, A7A0, A7A8, A788 | Xe-LP (Iris Xe, UHD) | stage 2 probe passes on 46A6 and on A788 in discrete mode, stages 1 to 3 on 46A3 (tester reports); later stages need their own GuC firmware |
+| Alder Lake, Raptor Lake (12th to 14th gen mobile) | 46A6, 46A3, 46A8, 4688, A7A0, A7A8, A788, A78B | Xe-LP (Iris Xe, UHD) | stage 2 probe passes on 46A6 and on A788 in discrete mode, stages 1 to 3 on 46A3 (tester reports); later stages need their own GuC firmware |
 | Intel Arc A-series (Alchemist) | 56A0, 56A1, 5690 | Xe-HPG | stages 1 and 2 pass on an A770 passed through to a VM; stage 3 needs `xegfx.pci_scan_all=1` because the card is not on bus 0 ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6662851589)) |
 | Lunar Lake, Battlemage, Panther Lake | 64A0, E20B, E20C | Xe2 and later | needs the xe driver, not i915 ([issue #8](https://github.com/watchthelight-labs/WTLIntelGfx/issues/8)) |
 
@@ -162,10 +162,10 @@ XeGfx is built on other people's work. Thanks to all of them.
 | [change-48](https://github.com/change-48) | HONOR MagicBook Art 14 2025, Core Ultra 7 255H, `7D51` | the first Arrow Lake-H desktop, and a 3120-wide panel whose rows are padded past the scanout stride ([#14](https://github.com/watchthelight-labs/WTLIntelGfx/issues/14)) |
 | [lemlnn](https://github.com/lemlnn) | Panther Lake laptop, `B082` | Xe3 device and firmware data; past ExitBootServices with VT-d off and DMAR dropped ([#11](https://github.com/watchthelight-labs/WTLIntelGfx/issues/11)) |
 | [jixx-choi](https://github.com/jixx-choi) | Razer Blade 18 2024, i9-14900HX, `A788` | with the MUX on discrete the iGPU leaves PCI entirely |
-| [cells114514](https://github.com/cells114514) | HP OMEN, i7-14650HX | the same: no iGPU node at all in discrete mode |
+| [cells114514](https://github.com/cells114514) | HP OMEN, i7-14650HX, `A78B` | the same: no iGPU node at all in discrete mode |
 | [bafcz](https://github.com/bafcz) | Lenovo Legion Y9000P IRX8, `A788` | Raptor Lake-HX device data |
 | [sulthonuladib](https://github.com/sulthonuladib) | HP Victus 15-fa0xxx, `46A6` | Alder Lake-P device data on a laptop with no MUX |
-| [nidemimihihi](https://github.com/nidemimihihi) | TOPC desktop board with a mobile i7-14650HX | device data and BIOS graphics settings from a mobile-on-desktop board |
+| [nidemimihihi](https://github.com/nidemimihihi) | TOPC RPL-HX MATX desktop board (HM770), i7-14650HX, `A78B` | device data and BIOS graphics settings from a mobile-on-desktop board; the 14650HX iGPU is `A78B`, class 0380 |
 | [pubglite55](https://github.com/pubglite55) | ASUS ROG Zephyrus M16 GU603ZM, i7-12700H, `46A6` | Alder Lake-P configuration data |
 
 ## How it stays safe to test
