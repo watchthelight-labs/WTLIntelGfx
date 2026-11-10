@@ -1,5 +1,5 @@
 /*
- * fbreloc_core.h -- move the firmware's boot framebuffer out of i915's GuC area in the GGTT.
+ * xg_fbreloc.h -- move the firmware's boot framebuffer out of i915's GuC area in the GGTT.
  *
  * ThinkBook 14+ 155H (8086:7D55): the GOP scans out 3072x1920 (22.5 MiB) at GGTT 0xFE800000, which crosses
  * GUC_GGTT_TOP 0xFEE00000. i915 reserves [0xFEE00000, 4 GiB) for the uC images and maps the GuC binary at its start,
@@ -12,8 +12,8 @@
  * Used by XeGfx stage 4 (xg_kext.cpp, before i915 starts); register offsets as in i915 (display 14) and XeGfx's
  * stage 2 probe.
  */
-#ifndef FBRELOC_CORE_H
-#define FBRELOC_CORE_H
+#ifndef XG_FBRELOC_H
+#define XG_FBRELOC_H
 
 typedef unsigned long long u64;
 typedef unsigned int u32;
@@ -27,6 +27,11 @@ typedef unsigned char u8;
 #define REG_PLANE_SIZE_1A	0x70190u
 #define REG_PLANE_SURF_1A	0x7019cu
 #define REG_PLANE_SURFLIVE_1A	0x701acu
+#define REG_CUR_CTL_A		0x70080u
+#define REG_CUR_BASE_A		0x70084u
+#define PLANE_STRIDE_STEP	0x100u		/* plane n+1's registers sit 0x100 above plane n's (i915 _PLANE(), display 14) */
+#define FBR_NPLANES		5
+#define FBR_CUR_PAGES		64		/* a 256x256 ARGB cursor, the largest */
 #define REG_GFX_FLSH_CNTL	0x101008u	/* GFX_FLSH_CNTL_GEN6: GGTT TLB flush */
 #define GSM_OFFSET		0x800000u	/* GGTT entries live at BAR0 + 8 MiB, 8 bytes each */
 #define GUC_GGTT_TOP		0xfee00000u
@@ -37,15 +42,6 @@ typedef unsigned char u8;
 static const u32 fbr_targets[] = { 0x80000000u, 0x40000000u, 0xc0000000u };
 #define FBR_NTARGETS	(sizeof(fbr_targets) / sizeof(fbr_targets[0]))
 
-static int fbr_is_target(u32 s)
-{
-	u32 k;
-
-	for (k = 0; k < FBR_NTARGETS; k++)
-		if (fbr_targets[k] == s)
-			return 1;
-	return 0;
-}
 
 /* fbr_run's mode bits; 0/1 keep their old meaning (dry run / move) */
 #define FBR_APPLY	1
@@ -60,7 +56,7 @@ static int fbr_is_target(u32 s)
 
 enum {
 	FBR_MOVED = 1,
-	FBR_NOT_NEEDED = 0,		/* the surface already ends below GUC_GGTT_TOP */
+	FBR_NOT_NEEDED = 0,		/* the surface does not cross GUC_GGTT_TOP: it ends below it or starts at or above it */
 	FBR_PIPE_OFF = -1,
 	FBR_PLANE_OFF = -2,
 	FBR_PTE_INVALID = -3,
@@ -116,20 +112,30 @@ static int fbr_target_free(volatile u64 *g, u32 t, u32 pages, u32 src)
 	return 1;
 }
 
-/* a reclaimed target must stay clear of every surface the display engine reads: plane 1 of each enabled pipe A-D
-   (pipe stride 0x1000, as i915's _PIPE() for display 14). Pipe A's own surface is the source and is checked too. */
+/* a reclaimed target must stay clear of every surface the display engine reads: each enabled universal plane and the
+   cursor of each enabled pipe A-D (pipe stride 0x1000, plane stride 0x100, as i915's _PIPE() and _PLANE() for display
+   14). Pipe A's own surface is the source and is checked too. The sizes are upper bounds: stride is read as linear
+   64-byte units and the cursor as its largest size, which can only make a target look busier than it is. */
 static int fbr_target_scanned(volatile u8 *bar, u32 t, u32 pages)
 {
-	u32 p, s, stride, h;
+	u32 p, n, s, stride, h;
 
 	for (p = 0; p < 4; p++) {
-		if (!(fbr_rd(bar, REG_TRANSCONF_A + p * 0x1000u) & 0x80000000u) ||
-		    !(fbr_rd(bar, REG_PLANE_CTL_1A + p * 0x1000u) & 0x80000000u))
+		if (!(fbr_rd(bar, REG_TRANSCONF_A + p * 0x1000u) & 0x80000000u))
 			continue;
-		s = fbr_rd(bar, REG_PLANE_SURF_1A + p * 0x1000u) >> 12;
-		stride = fbr_rd(bar, REG_PLANE_STRIDE_1A + p * 0x1000u) & 0x7ffu;
-		h = ((fbr_rd(bar, REG_PLANE_SIZE_1A + p * 0x1000u) >> 16) & 0xffffu) + 1;
-		if (fbr_overlaps(t, pages, s, (u32)(((u64)stride * 64 * h + 0xfff) >> 12)))
+		for (n = 0; n < FBR_NPLANES; n++) {
+			u32 o = p * 0x1000u + n * PLANE_STRIDE_STEP;
+
+			if (!(fbr_rd(bar, REG_PLANE_CTL_1A + o) & 0x80000000u))
+				continue;
+			s = fbr_rd(bar, REG_PLANE_SURF_1A + o) >> 12;
+			stride = fbr_rd(bar, REG_PLANE_STRIDE_1A + o) & 0x7ffu;
+			h = ((fbr_rd(bar, REG_PLANE_SIZE_1A + o) >> 16) & 0xffffu) + 1;
+			if (fbr_overlaps(t, pages, s, (u32)(((u64)stride * 64 * h + 0xfff) >> 12)))
+				return 1;
+		}
+		if ((fbr_rd(bar, REG_CUR_CTL_A + p * 0x1000u) & 0x3fu) &&
+		    fbr_overlaps(t, pages, fbr_rd(bar, REG_CUR_BASE_A + p * 0x1000u) >> 12, FBR_CUR_PAGES))
 			return 1;
 	}
 	return 0;
@@ -174,9 +180,9 @@ static int fbr_run(volatile u8 *bar, int mode, struct fbr_result *r)
 	if (stride == 0 || size > FB_MAX_SIZE || (u64)surf + size > GGTT_SIZE)
 		return r->status = FBR_BAD_SIZE;
 	r->pages = (u32)((size + 0xfff) >> 12);
-	/* only a surface that starts below GUC_GGTT_TOP is moved; one at or above it is i915's own reservation, and a
-	   surface already at a target is where an earlier pass put it */
-	if (surf >= GUC_GGTT_TOP || fbr_is_target(surf))
+	/* only a surface that crosses GUC_GGTT_TOP is moved: one that ends below it is left to reserve_bootfb, and one
+	   that starts at or above it is i915's own GuC-top reservation */
+	if (surf >= GUC_GGTT_TOP || (u64)surf + size <= GUC_GGTT_TOP)
 		return r->status = FBR_NOT_NEEDED;
 	src = surf >> 12;
 	for (i = 0; i < r->pages; i++)
