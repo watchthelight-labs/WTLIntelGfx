@@ -510,7 +510,8 @@ xg_run_stage(int s)
 			if (rc == 1 && gPipeLit && gBootSurf && xg_boot_fb_size) {
 				int err = xg_i915_reserve_bootfb(gBootSurf, xg_boot_fb_size);
 
-				IOLog("XeGfx: boot surface GGTT 0x%x + %llu reserved: %d\n", gBootSurf, xg_boot_fb_size, err);
+				IOLog("XeGfx: boot surface GGTT 0x%x + %llu reserved: %d%s\n", gBootSurf, xg_boot_fb_size, err,
+				    (err == -28 && gBootSurf >= 0xfee00000u) ? " (expected: i915 keeps the range above the GuC top)" : "");
 				/* -ENOSPC at or above GUC_GGTT_TOP is i915's own GuC-top reservation, which keeps it free (N-256) */
 				if (err == -28 && gBootSurf < 0xfee00000u)
 					rc = -28;	/* something else sits there: compositing into it would overwrite it */
