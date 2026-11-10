@@ -151,7 +151,7 @@ XeGfx is built on other people's work. Thanks to all of them.
 | [UNDERDOG07](https://github.com/UNDERDOG07) | Lenovo Legion Y7000P IRX10, i9-14900HX, `A788` | device data for the 32 EU Raptor Lake-HX part, class 0380 in discrete mode; stage 2 passes on 0.0.47 in discrete mode, the first check of that fix ([#12](https://github.com/watchthelight-labs/WTLIntelGfx/issues/12)) |
 | [HAOoool](https://github.com/HAOoool) | Dell G15 5511, i7-11800H, `9A60` | Tiger Lake-H device data; discrete mode removes the iGPU from ACPI and PCI; stage 2 passes in hybrid mode on 0.0.46 |
 | [559911](https://github.com/559911) | Mechrevo GM6AR57C, i7-12800HX, `4688` | Alder Lake-HX device data, with WhateverXe 0.6.1 for comparison |
-| [Mochen-wu](https://github.com/Mochen-wu) | ROG Strix G16 G614JVR, i9-14900HX, `A788` | Raptor Lake-HX device data on Tahoe 26.7.2; stage 2 in discrete mode, where memory decoding is off and the probe reads IDs and BARs only |
+| [Mochen-wu](https://github.com/Mochen-wu) | ROG Strix G16 G614JVR, i9-14900HX, `A788` | Raptor Lake-HX device data on Tahoe 26.7.2; stage 2 on 0.0.47 in discrete mode, where memory decoding is off and the probe reads IDs and BARs only |
 | [phmthnh](https://github.com/phmthnh) | Acer Nitro AN515-58, i5-12500H, `46A6` | Linux topology, stolen memory and firmware versions |
 | [7HE-W0R1D](https://github.com/7HE-W0R1D) | Gigabyte Z890M Aorus Elite, Core Ultra 7 265K, `7D67` | stage 2 passes on a desktop with an RTX 4070 SUPER as the primary GPU ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6546158307)) |
 | [WilliamAlexanda](https://github.com/WilliamAlexanda) | RedmiBook Pro 15 2021, i5-11300H, `9A49` | stage 2 passes on 0.0.47, the first Iris Xe run; notes on zep245's Tiger Lake driver and raising DVMT ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6567979501)) |
@@ -159,13 +159,15 @@ XeGfx is built on other people's work. Thanks to all of them.
 | [cxaiverb](https://github.com/cxaiverb) | Intel Arc A770 (`56A0`) in a Proxmox VM | stages 1 and 2 pass; found that stage 3 only scans bus 0 and that `debug.xegfx_env` replaces the defaults ([#3](https://github.com/watchthelight-labs/WTLIntelGfx/issues/3#issuecomment-6662851589)) |
 | [saspol](https://github.com/saspol) | Gigabyte Z890 Aorus Elite WiFi7, Core Ultra 7 265K, `7D67` | stages 1 to 6 pass with SIP on and an RX 6900 XT driving the displays, the first desktop run ([#15](https://github.com/watchthelight-labs/WTLIntelGfx/issues/15)) |
 | [samwu07](https://github.com/samwu07) | Lenovo ThinkBook 14+ 2024, Core Ultra 7 155H, `7D55` | stages 1 to 3 pass, stage 4 refuses a boot framebuffer below the GuC top; WindowServer and Metal on 0.0.47 with his framebuffer move ([#13](https://github.com/watchthelight-labs/WTLIntelGfx/issues/13)) |
-| [change-48](https://github.com/change-48) | HONOR MagicBook Art 14 2025, Core Ultra 7 255H, `7D51` | the first Arrow Lake-H desktop, and a 3120-wide panel whose rows are padded past the scanout stride ([#14](https://github.com/watchthelight-labs/WTLIntelGfx/issues/14)) |
-| [lemlnn](https://github.com/lemlnn) | Panther Lake laptop, `B082` | Xe3 device and firmware data; past ExitBootServices with VT-d off and DMAR dropped ([#11](https://github.com/watchthelight-labs/WTLIntelGfx/issues/11)) |
-| [jixx-choi](https://github.com/jixx-choi) | Razer Blade 18 2024, i9-14900HX, `A788` | with the MUX on discrete the iGPU leaves PCI entirely |
+| [change-48](https://github.com/change-48) | HONOR MagicBook Art 14 2025, Core Ultra 7 255H, `7D51` | the first Arrow Lake-H desktop, and a 3120-wide panel whose rows are padded past the scanout stride; since then a deferred zero-copy flip on his own stack, with flip slots sized for the panel's real pitch ([#14](https://github.com/watchthelight-labs/WTLIntelGfx/issues/14)) |
+| [lemlnn](https://github.com/lemlnn) | Framework Laptop 13 Pro, Core Ultra X7 358H, `B082` | Xe3 device and firmware data; past ExitBootServices with VT-d off and DMAR dropped ([#11](https://github.com/watchthelight-labs/WTLIntelGfx/issues/11)) |
+| [ydd1126](https://github.com/ydd1126) | Gigabyte B860M POWER, Core Ultra 5 245K, `7D67` | stage 2 passes on 0.0.47 with an RTX 3070 driving both displays; notes on loading the kext on macOS 26 |
+| [khucxtriendev](https://github.com/khucxtriendev) | ThinkPad P1 Gen 5, i7-12800H, `46A6` | Alder Lake-H device data from a machine that runs the panel on WhateverXe |
+| [jixx-choi](https://github.com/jixx-choi) | Razer Blade 18 2024, i9-14900HX, `A788` | with the MUX on discrete the iGPU leaves PCI entirely; in hybrid mode stage 2 passes on 0.0.47 with the panel on the iGPU |
 | [cells114514](https://github.com/cells114514) | HP OMEN, i7-14650HX, `A78B` | the same: no iGPU node at all in discrete mode |
 | [bafcz](https://github.com/bafcz) | Lenovo Legion Y9000P IRX8, `A788` | Raptor Lake-HX device data |
 | [sulthonuladib](https://github.com/sulthonuladib) | HP Victus 15-fa0xxx, `46A6` | Alder Lake-P device data on a laptop with no MUX |
-| [nidemimihihi](https://github.com/nidemimihihi) | TOPC RPL-HX MATX desktop board (HM770), i7-14650HX, `A78B` | device data and BIOS graphics settings from a mobile-on-desktop board; the 14650HX iGPU is `A78B`, class 0380 |
+| [nidemimihihi](https://github.com/nidemimihihi) | TOPC RPL-HX MATX desktop board (HM770), i7-14650HX, `A78B` | device data and BIOS graphics settings from a mobile-on-desktop board; the 14650HX iGPU is `A78B`, class 0380; stage 2 passes on 0.0.47 with an AMD card driving the display |
 | [pubglite55](https://github.com/pubglite55) | ASUS ROG Zephyrus M16 GU603ZM, i7-12700H, `46A6` | Alder Lake-P configuration data |
 
 ## How it stays safe to test
