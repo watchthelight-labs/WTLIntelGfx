@@ -2,6 +2,15 @@
 
 Versions are the kext's `CFBundleVersion`. "Booted" means the version ran on the test laptop (Legion 5 15IAX10, Arrow Lake iGPU `8086:7D67`); "built" means it compiled and has not been run. Prereleases with a binary: v0.0.27, v0.0.35, v0.0.36, v0.0.38, v0.0.45, v0.0.46 and v0.0.47.
 
+## Unreleased (not booted)
+
+- Stage 4 moves the boot framebuffer out of the GuC area before i915 starts (WTLIntelGfx issue #13). When the GOP's
+  GGTT mapping crosses `0xFEE00000`, its entries are copied to a free range below it and PLANE_SURF follows at the
+  next vblank; a surface that ends below the top (including one at GGTT 0), or starts at or above it, is left alone. A
+  reclaimed target is kept clear of every enabled plane and cursor. If the move is refused and the framebuffer still
+  crosses the top, stage 4 stops before i915 starts, so the GuC image is not drawn over the panel. Replaces the
+  separate XgFbMove kext for stages run by XeGfx.
+
 ## 0.0.47 (booted: N-355)
 
 - The stage 2 probe and the later stages find an Intel GPU whose PCI class is 0380 (display, other) as well as 0300. A MUX in discrete mode leaves the iGPU as 0380, so the probe found nothing on those machines (I-125, reported by two testers).
