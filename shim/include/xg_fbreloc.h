@@ -30,7 +30,7 @@ typedef unsigned char u8;
 #define REG_CUR_CTL_A		0x70080u
 #define REG_CUR_BASE_A		0x70084u
 #define PLANE_STRIDE_STEP	0x100u		/* plane n+1's registers sit 0x100 above plane n's (i915 _PLANE(), display 14) */
-#define FBR_NPLANES		5
+#define FBR_NPLANES		5		/* universal planes per pipe on display 13 and 14; display 12 has seven */
 #define FBR_CUR_PAGES		64		/* a 256x256 ARGB cursor, the largest */
 #define REG_GFX_FLSH_CNTL	0x101008u	/* GFX_FLSH_CNTL_GEN6: GGTT TLB flush */
 #define GSM_OFFSET		0x800000u	/* GGTT entries live at BAR0 + 8 MiB, 8 bytes each */
@@ -114,8 +114,9 @@ static int fbr_target_free(volatile u64 *g, u32 t, u32 pages, u32 src)
 
 /* a reclaimed target must stay clear of every surface the display engine reads: each enabled universal plane and the
    cursor of each enabled pipe A-D (pipe stride 0x1000, plane stride 0x100, as i915's _PIPE() and _PLANE() for display
-   14). Pipe A's own surface is the source and is checked too. The sizes are upper bounds: stride is read as linear
-   64-byte units and the cursor as its largest size, which can only make a target look busier than it is. */
+   14). Pipe A's own surface is the source and is checked too. A plane's size is exact only for a linear surface, which
+   is all the firmware leaves on at stage 4: stride is read as 64-byte units, and a tiled plane's stride counts wider
+   tiles, so its size comes out too small. The cursor is taken at its largest size. */
 static int fbr_target_scanned(volatile u8 *bar, u32 t, u32 pages)
 {
 	u32 p, n, s, stride, h;
