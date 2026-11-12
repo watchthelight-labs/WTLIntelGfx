@@ -2,7 +2,7 @@
 
 Versions are the kext's `CFBundleVersion`. "Booted" means the version ran on the test laptop (Legion 5 15IAX10, Arrow Lake iGPU `8086:7D67`); "built" means it compiled and has not been run. Prereleases with a binary: v0.0.27, v0.0.35, v0.0.36, v0.0.38, v0.0.45, v0.0.46 and v0.0.47.
 
-## Unreleased (not booted)
+## 0.0.48 (booted: N-372)
 
 - Stage 4 moves the boot framebuffer out of the GuC area before i915 starts (WTLIntelGfx issue #13). When the GOP's
   GGTT mapping crosses `0xFEE00000`, its entries are copied to a free range below it and PLANE_SURF follows at the
@@ -10,6 +10,11 @@ Versions are the kext's `CFBundleVersion`. "Booted" means the version ran on the
   reclaimed target is kept clear of every enabled plane and cursor. If the move is refused and the framebuffer still
   crosses the top, stage 4 stops before i915 starts, so the GuC image is not drawn over the panel. Replaces the
   separate XgFbMove kext for stages run by XeGfx.
+  Written and tested by samwu07 on a ThinkBook whose framebuffer crosses the top (PR #16). On the Legion the boot
+  surface sits at `0xFF000000`, so N-372 took the "not needed" path: status 0, stages 1 to 7 and the userland checks
+  pass. The result is in the kernel log line "stage 4 boot framebuffer move" and in the GPU's `xegfx-fbmove` property.
+- First run on macOS 26.7.3 beta (25G416): loads and passes stages 1 to 7 unchanged.
+- `tools/link.sh` takes `NO_LINKCHECK=1` to skip the checks that read the kernel collections.
 
 ## 0.0.47 (booted: N-355)
 
