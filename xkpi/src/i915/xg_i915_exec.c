@@ -240,7 +240,7 @@ xg_i915_gt_freq(unsigned int *min, unsigned int *act)
 		return (-ENODEV);
 	gt = to_gt(i915);
 	rpm = &i915->runtime_pm;
-	if (!intel_uc_uses_guc_slpc(&gt->uc) && !intel_rps_is_enabled(&gt->rps)) {
+	if (!intel_uc_uses_guc_slpc(&gt->uc)) {		/* SLPC only: host RPS is not brought up here */
 		pci_dev_put(pdev);
 		return (-ENODEV);
 	}
@@ -265,7 +265,7 @@ xg_i915_gt_set_min(unsigned int mhz)
 	if ((i915 = xg_i915_find(&pdev)) == NULL)
 		return (-ENODEV);
 	rps = &to_gt(i915)->rps;
-	if (!intel_uc_uses_guc_slpc(&to_gt(i915)->uc) && !intel_rps_is_enabled(rps)) {
+	if (!intel_uc_uses_guc_slpc(&to_gt(i915)->uc)) {
 		pci_dev_put(pdev);
 		return (-ENODEV);
 	}
