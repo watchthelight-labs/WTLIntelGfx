@@ -220,3 +220,59 @@ xg_i915_reserve_bootfb(unsigned long long offset, unsigned long long size)
 	mutex_unlock(&ggtt->vm.mutex);
 	return (err);
 }
+
+/*
+ * GT clock floor A/B (debug.xegfx_gt_min, debug.xegfx_gt_act). With GuC SLPC the floor goes through
+ * intel_guc_slpc_set_min_freq, which checks the range and takes slpc->lock and its own runtime wakeref; the read
+ * holds a wakeref so the actual frequency is not reported as 0 while the GT idles. MHz everywhere. Call from a
+ * sysctl thread that holds no stage lock: both paths sleep.
+ */
+int
+xg_i915_gt_freq(unsigned int *min, unsigned int *act)
+{
+	struct drm_i915_private *i915;
+	struct intel_runtime_pm *rpm;
+	struct intel_gt *gt;
+	struct pci_dev *pdev;
+	intel_wakeref_t wf;
+
+	if ((i915 = xg_i915_find(&pdev)) == NULL)
+		return (-ENODEV);
+	gt = to_gt(i915);
+	rpm = &i915->runtime_pm;
+	if (!intel_uc_uses_guc_slpc(&gt->uc) && !intel_rps_is_enabled(&gt->rps)) {
+		pci_dev_put(pdev);
+		return (-ENODEV);
+	}
+	wf = intel_runtime_pm_get(rpm);
+	*min = intel_rps_get_min_frequency(&gt->rps);
+	*act = intel_rps_read_actual_frequency(&gt->rps);
+	intel_runtime_pm_put(rpm, wf);
+	pci_dev_put(pdev);
+	return (0);
+}
+
+/* mhz 0 = the driver default (RPn); otherwise clamped to RPn..the driver's max softlimit */
+int
+xg_i915_gt_set_min(unsigned int mhz)
+{
+	struct drm_i915_private *i915;
+	struct intel_rps *rps;
+	struct pci_dev *pdev;
+	unsigned int lo, hi;
+	int err;
+
+	if ((i915 = xg_i915_find(&pdev)) == NULL)
+		return (-ENODEV);
+	rps = &to_gt(i915)->rps;
+	if (!intel_uc_uses_guc_slpc(&to_gt(i915)->uc) && !intel_rps_is_enabled(rps)) {
+		pci_dev_put(pdev);
+		return (-ENODEV);
+	}
+	lo = intel_rps_get_rpn_frequency(rps);
+	hi = intel_rps_get_max_frequency(rps);
+	mhz = mhz == 0 ? lo : clamp(mhz, lo, hi);
+	err = intel_rps_set_min_frequency(rps, mhz);
+	pci_dev_put(pdev);
+	return (err);
+}

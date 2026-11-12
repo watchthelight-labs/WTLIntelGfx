@@ -50,6 +50,9 @@ void xg_i915_map_init(void);
 int xg_i915_store(struct xg_i915_store *sd, int timeout_ms);
 /* keep i915 off the GGTT range the boot surface scans out of (Hybrid, display disabled); 0 or a negative errno */
 int xg_i915_reserve_bootfb(unsigned long long offset, unsigned long long size);
+/* GT clock floor in MHz and the actual clock; both -ENODEV without an i915 device or RPS, else 0 or -errno */
+int xg_i915_gt_freq(unsigned int *min, unsigned int *act);
+int xg_i915_gt_set_min(unsigned int mhz);	/* 0 = driver default; clamped to RPn..max */
 
 #ifdef __cplusplus
 }

@@ -2,6 +2,13 @@
 
 Versions are the kext's `CFBundleVersion`. "Booted" means the version ran on the test laptop (Legion 5 15IAX10, Arrow Lake iGPU `8086:7D67`); "built" means it compiled and has not been run. Prereleases with a binary: v0.0.27, v0.0.35, v0.0.36, v0.0.38, v0.0.45, v0.0.46 and v0.0.47.
 
+## Unreleased (not booted)
+
+- Two sysctls for a GT clock floor A/B. `debug.xegfx_gt_min` reads the floor in MHz and, when written, sets it through
+  i915 (`intel_rps_set_min_frequency`, which is `intel_guc_slpc_set_min_freq` with GuC SLPC): 0 restores the driver
+  default (RPn), other values are clamped to RPn..max. `debug.xegfx_gt_act` reads the actual GT clock. Both return ENXIO
+  until stage 4 has run (or while a stage is running) and take the runtime PM wakeref the i915 calls need. Built only.
+
 ## 0.0.48 (booted: N-372)
 
 - Stage 4 moves the boot framebuffer out of the GuC area before i915 starts (WTLIntelGfx issue #13). When the GOP's

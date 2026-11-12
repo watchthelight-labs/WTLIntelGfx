@@ -766,6 +766,42 @@ SYSCTL_PROC(_debug, OID_AUTO, xegfx_mem, CTLTYPE_STRING | CTLFLAG_RD | CTLFLAG_L
     "XeGfx M_NOWAIT reserve per size class and its misses");
 SYSCTL_PROC(_debug, OID_AUTO, xegfx_fd, CTLTYPE_STRING | CTLFLAG_RD | CTLFLAG_LOCKED, nullptr, 0, xegfx_fd_sysctl, "A",
     "XeGfx node instances by state and the fd lock holder");
+/* GT clock floor A/B: write MHz (0 = driver default), read the floor. ENXIO until stage 4 has attached i915 */
+static int
+xegfx_gt_min_sysctl(struct sysctl_oid *, void *, int, struct sysctl_req *req)
+{
+	unsigned int mn = 0, act = 0;
+	int v, err;
+
+	if (gStage < 4 || gRunning)
+		return ENXIO;
+	if (xg_i915_gt_freq(&mn, &act))
+		return ENXIO;
+	v = (int)mn;
+	err = sysctl_handle_int(nullptr, &v, 0, req);
+	if (err || !req->newptr)
+		return err;
+	if (v < 0)
+		return EINVAL;
+	err = xg_i915_gt_set_min((unsigned)v);
+	return err < 0 ? -err : err;
+}
+
+static int
+xegfx_gt_act_sysctl(struct sysctl_oid *, void *, int, struct sysctl_req *req)
+{
+	unsigned int mn = 0, act = 0;
+	int v;
+
+	if (gStage < 4 || gRunning || xg_i915_gt_freq(&mn, &act))
+		return ENXIO;
+	v = (int)act;
+	return sysctl_handle_int(nullptr, &v, 0, req);
+}
+SYSCTL_PROC(_debug, OID_AUTO, xegfx_gt_min, CTLTYPE_INT | CTLFLAG_RW | CTLFLAG_LOCKED, nullptr, 0, xegfx_gt_min_sysctl, "I",
+    "GT clock floor in MHz (0 = driver default), clamped to the RP limits; ENXIO before stage 4");
+SYSCTL_PROC(_debug, OID_AUTO, xegfx_gt_act, CTLTYPE_INT | CTLFLAG_RD | CTLFLAG_LOCKED, nullptr, 0, xegfx_gt_act_sysctl, "I",
+    "actual GT clock in MHz; ENXIO before stage 4");
 SYSCTL_INT(_debug, OID_AUTO, xegfx_running, CTLFLAG_RD | CTLFLAG_LOCKED, &gRunning, 0, "stage in progress");
 SYSCTL_INT(_debug, OID_AUTO, xegfx_progress, CTLFLAG_RD | CTLFLAG_LOCKED, &xg_progress, 0, "last breadcrumb");
 SYSCTL_INT(_debug, OID_AUTO, xegfx_wdog, CTLFLAG_RW | CTLFLAG_LOCKED, &gWdog, 0, "stage stall panic, seconds");
@@ -783,6 +819,8 @@ static struct sysctl_oid *const gOids[] = {
 	&sysctl__debug_xegfx_hold,
 	&sysctl__debug_xegfx_trace,
 	&sysctl__debug_xegfx_spin,
+	&sysctl__debug_xegfx_gt_min,
+	&sysctl__debug_xegfx_gt_act,
 };
 
 /* Linux's struct va_format, the argument of "%pV" */
