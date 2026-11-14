@@ -212,8 +212,8 @@ class XeGfxIntelFramebuffer : public IONDRVFramebuffer {
         const bool tiled = (pctl & (7u << 10)) != 0;                       // PLANE_CTL_TILED bits 12:10, 0 is linear
         const bool overlap = !fbBytes || fbEnd > XIFB_CUR_GGTT;      // the block must end at or below our 64 pages (also refuses one above)
         if (rd(XIFB_CUR_CTL) || !surf || (surf & 0xfffu) || tiled || overlap || rd(XIFB_P1_BUF) != 0x07ff0000u) {
-            XIFBLOG("hw cursor off: display not as the GOP left it (cur %08x surf %08x end %llx buf %08x)", rd(XIFB_CUR_CTL),
-                    surf, (unsigned long long)fbEnd, rd(XIFB_P1_BUF));
+            XIFBLOG("hw cursor off: display not as the GOP left it (cur %08x surf %08x end %llx buf %08x ctl %08x)", rd(XIFB_CUR_CTL),
+                    surf, (unsigned long long)fbEnd, rd(XIFB_P1_BUF), pctl);
             return false;
         }
         const size_t bytes = XIFB_CUR_DIM * XIFB_CUR_DIM * 4;
