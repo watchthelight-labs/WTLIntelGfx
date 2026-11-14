@@ -169,6 +169,7 @@ XeGfx is built on other people's work. Thanks to all of them.
 | [jixx-choi](https://github.com/jixx-choi) | Razer Blade 18 2024, i9-14900HX, `A788` | with the MUX on discrete the iGPU leaves PCI entirely; in hybrid mode stage 2 passes on 0.0.47 with the panel on the iGPU |
 | [cells114514](https://github.com/cells114514) | HP OMEN, i7-14650HX, `A78B` | the same: no iGPU node at all in discrete mode |
 | [bafcz](https://github.com/bafcz) | Lenovo Legion Y9000P IRX8, `A788` | Raptor Lake-HX device data |
+| [zhouzt0121](https://github.com/zhouzt0121) | Thunderobot Hunter R15 (Clevo), i7-13650HX, `A78B` | device data read from Windows; in discrete mode macOS sees no iGPU node, the first 13650HX report |
 | [sulthonuladib](https://github.com/sulthonuladib) | HP Victus 15-fa0xxx, `46A6` | Alder Lake-P device data on a laptop with no MUX |
 | [nidemimihihi](https://github.com/nidemimihihi) | TOPC RPL-HX MATX desktop board (HM770), i7-14650HX, `A78B` | device data and BIOS graphics settings from a mobile-on-desktop board; the 14650HX iGPU is `A78B`, class 0380; stage 2 passes on 0.0.47 with an AMD card driving the display |
 | [pubglite55](https://github.com/pubglite55) | ASUS ROG Zephyrus M16 GU603ZM, i7-12700H, `46A6` | Alder Lake-P configuration data |
