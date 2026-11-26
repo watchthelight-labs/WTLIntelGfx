@@ -51,9 +51,9 @@ static void xifbGuardCount()
 }
 static void xifbGuardClear()
 {
-    static bool done; if (done) return; done = true;
     IORegistryEntry *o = IORegistryEntry::fromPath("/options", gIODTPlane); if (!o) return;
     // removeProperty did not reach NVRAM (N-283); a zero count does, the same way the count itself is written
+    // every start arms its own clear: a once-per-boot clear left a second start of the same boot counted (I-141)
     unsigned char z = 0;
     if (OSData *d = OSData::withBytes(&z, 1)) { if (o->setProperty(XIFB_GUARD_VAR, d)) XIFBLOG("boot guard cleared: still up 120 s after start"); d->release(); }
     o->release();
