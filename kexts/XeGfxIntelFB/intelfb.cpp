@@ -160,7 +160,7 @@ static uint32_t xifbSnapHz(const uint8_t *e, int len, uint32_t meas)
 // rect around it, and WindowServer recomposites blurred window backdrops there (the I-119 square).
 // The GOP maps a GGTT block for its framebuffer (0xff000000 on the Legion, 0xff600000 on another laptop's firmware, so
 // the address is read from PLANE_SURF, not assumed). Our 64 pages at XIFB_CUR_GGTT lie in i915's reserved top of GGTT, so
-// pointing them at our own pages leaves everything else alone as long as the GOP block ends below them (curSetup checks).
+// pointing them at our own pages leaves everything else alone as long as the GOP block ends below them (curArm checks).
 #define XIFB_CUR_DIM   256u
 #define XIFB_CUR_GGTT  0xfffa0000u
 #define XIFB_GSM       0x800000u                     // GGTT PTEs in BAR0
@@ -185,6 +185,7 @@ class XeGfxIntelFramebuffer : public IONDRVFramebuffer {
     IOBufferMemoryDescriptor *fCurMem = nullptr; IOMemoryMap *fCurMap = nullptr; uint32_t *fCurKva = nullptr;
     uint64_t fCurPte[XIFB_CUR_DIM * XIFB_CUR_DIM * 4 / 4096] = {};
     IOSimpleLock *fCurLock = nullptr; bool fCurReady = false, fCurDdb = false, fCurOn = false;
+    bool fCurWanted = false; uint32_t fCurWhy = 1;   // pages and lock are there; the PLANE_SURF last logged while waiting
     uint32_t rd(uint32_t o) { return fR[o / 4]; }
     void wr(uint32_t o, uint32_t v) { fR[o / 4] = v; }
     void waitFrame() { uint32_t a = rd(0x70040); for (int i = 0; i < 50 && rd(0x70040) == a; i++) IODelay(500); }
@@ -195,9 +196,34 @@ class XeGfxIntelFramebuffer : public IONDRVFramebuffer {
         for (unsigned i = 0; i < sizeof fCurPte / sizeof fCurPte[0]; i++) if (g[i] != fCurPte[i]) { g[i] = fCurPte[i]; chg = true; }
         if (chg) { wr(0x101008, 1); (void)rd(0x101008); }
     }
-    bool curSetup() {
+    // Split in two. curAlloc(): the cursor's memory and PTEs, once in start(). curArm(): register checks only, repeatable.
+    // IOFramebuffer asks for kIOHardwareCursorAttribute once, in open() (haveHWCursor), and records the cursor format once,
+    // in postOpen(), from a test setCursorImage(). A firmware whose framebuffer still covers our 64 pages at start (Zenbook
+    // UX3405MA, 155H: GOP surface 0xfec00000 + 20.7 MB ends at 0xfffc7000; XgFbMove moves it to 0x80000000 later) made
+    // curSetup() decline, and the cursor stayed a software one for the whole boot although the plane was free seconds
+    // later. So the capability is claimed as soon as the pages exist, and every image is declined until the plane
+    // registers are as needed; IOFramebuffer draws a declined image itself, as it does for an oversized cursor.
+    bool curAlloc() {
         int off = 0;
         if (PE_parse_boot_argn("-xeintelfbnohwc", &off, sizeof off) || !fR) return false;
+        const size_t bytes = XIFB_CUR_DIM * XIFB_CUR_DIM * 4;
+        fCurMem = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, kIODirectionInOut, bytes, 0x7ffffff000ull);
+        if (!fCurMem || fCurMem->prepare() != kIOReturnSuccess) { XIFBLOG("hw cursor off: no memory"); return false; }
+        fCurMap = fCurMem->createMappingInTask(kernel_task, 0, kIOMapAnywhere | kIOMapWriteCombineCache);
+        if (!fCurMap) { XIFBLOG("hw cursor off: no mapping"); return false; }
+        fCurKva = (uint32_t *)fCurMap->getVirtualAddress();
+        for (unsigned i = 0; i < sizeof fCurPte / sizeof fCurPte[0]; i++) {
+            IOByteCount len = 0; addr64_t pa = fCurMem->getPhysicalSegment((IOByteCount)i * 4096, &len, kIOMemoryMapperNone);
+            if (!pa || (pa & 0xfff)) { XIFBLOG("hw cursor off: page %u at %llx", i, (unsigned long long)pa); return false; }
+            fCurPte[i] = pa | 1 | (1ull << 53);
+        }
+        bzero(fCurKva, bytes); __asm__ __volatile__("sfence" ::: "memory");
+        fCurLock = IOSimpleLockAlloc();
+        return fCurLock != nullptr;
+    }
+    bool curArm() {
+        if (fCurReady) return true;
+        if (!fCurWanted) return false;
         // Accept the GOP's framebuffer wherever the firmware put it, as long as it ends below our cursor pages. The block
         // is PLANE_SURF (page aligned base) for PLANE_STRIDE (64 byte units, linear) times PLANE_SIZE height (field is
         // height - 1, bits 31:16) bytes, the same arithmetic as fbr_target_scanned() in xg_fbreloc.h. A tiled plane has
@@ -212,27 +238,17 @@ class XeGfxIntelFramebuffer : public IONDRVFramebuffer {
         const bool tiled = (pctl & (7u << 10)) != 0;                       // PLANE_CTL_TILED bits 12:10, 0 is linear
         const bool overlap = !fbBytes || fbEnd > XIFB_CUR_GGTT;      // the block must end at or below our 64 pages (also refuses one above)
         if (rd(XIFB_CUR_CTL) || !surf || (surf & 0xfffu) || tiled || overlap || rd(XIFB_P1_BUF) != 0x07ff0000u) {
-            XIFBLOG("hw cursor off: display not as the GOP left it (cur %08x surf %08x end %llx buf %08x ctl %08x)", rd(XIFB_CUR_CTL),
-                    surf, (unsigned long long)fbEnd, rd(XIFB_P1_BUF), pctl);
+            if (surf != fCurWhy) {   // one line per PLANE_SURF value, not one per cursor image
+                fCurWhy = surf;
+                XIFBLOG("hw cursor waiting: display not as needed (cur %08x surf %08x end %llx buf %08x ctl %08x)", rd(XIFB_CUR_CTL),
+                        surf, (unsigned long long)fbEnd, rd(XIFB_P1_BUF), pctl);
+            }
             return false;
         }
-        const size_t bytes = XIFB_CUR_DIM * XIFB_CUR_DIM * 4;
-        fCurMem = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, kIODirectionInOut, bytes, 0x7ffffff000ull);
-        if (!fCurMem || fCurMem->prepare() != kIOReturnSuccess) { XIFBLOG("hw cursor off: no memory"); return false; }
-        fCurMap = fCurMem->createMappingInTask(kernel_task, 0, kIOMapAnywhere | kIOMapWriteCombineCache);
-        if (!fCurMap) { XIFBLOG("hw cursor off: no mapping"); return false; }
-        fCurKva = (uint32_t *)fCurMap->getVirtualAddress();
-        for (unsigned i = 0; i < sizeof fCurPte / sizeof fCurPte[0]; i++) {
-            IOByteCount len = 0; addr64_t pa = fCurMem->getPhysicalSegment((IOByteCount)i * 4096, &len, kIOMemoryMapperNone);
-            if (!pa || (pa & 0xfff)) { XIFBLOG("hw cursor off: page %u at %llx", i, (unsigned long long)pa); return false; }
-            fCurPte[i] = pa | 1 | (1ull << 53);
-        }
-        bzero(fCurKva, bytes); __asm__ __volatile__("sfence" ::: "memory");
-        fCurLock = IOSimpleLockAlloc();
-        fCurReady = fCurLock != nullptr;
+        fCurReady = true;
         XIFBLOG("hw cursor ready: %ux%u ARGB at GGTT %08x, firmware framebuffer %08x-%llx", XIFB_CUR_DIM, XIFB_CUR_DIM,
                 XIFB_CUR_GGTT, surf, (unsigned long long)fbEnd);
-        return fCurReady;
+        return true;
     }
     // the GOP gave plane 1 all 2048 DBUF blocks; the cursor takes the last 32 (i915's single-pipe cursor share)
     void curDdb() {
@@ -253,11 +269,11 @@ class XeGfxIntelFramebuffer : public IONDRVFramebuffer {
     SInt32 fCurX = 0, fCurY = 0; bool fCurVis = false, fCurImg = false;
 public:
     IOReturn getAttribute(IOSelect attr, uintptr_t *value) override {
-        if (attr == kIOHardwareCursorAttribute) { if (value) *value = fCurReady; return kIOReturnSuccess; }
+        if (attr == kIOHardwareCursorAttribute) { if (value) *value = fCurWanted; return kIOReturnSuccess; }   // asked once, in open()
         return IONDRVFramebuffer::getAttribute(attr, value);
     }
     IOReturn setCursorImage(void *img) override {
-        if (!fCurReady) return IONDRVFramebuffer::setCursorImage(img);
+        if (!fCurWanted) return IONDRVFramebuffer::setCursorImage(img);
         const size_t bytes = XIFB_CUR_DIM * XIFB_CUR_DIM * 4;
         uint32_t *st = (uint32_t *)IOMalloc(bytes); if (!st) return kIOReturnNoMemory;
         bzero(st, bytes);
@@ -269,6 +285,8 @@ public:
         ci.hardwareCursorData = (UInt8 *)st;
         bool ok = convertCursorImage(img, &d, &ci) && ci.cursorWidth && ci.cursorHeight &&
                   ci.cursorWidth <= XIFB_CUR_DIM && ci.cursorHeight <= XIFB_CUR_DIM;
+        // convertCursorImage has recorded the format for postOpen()'s test; a real image waits until the plane is free
+        if (ok && !curArm()) { IOFree(st, bytes); return kIOReturnUnsupported; }
         if (ok) {
             // premultiplied ARGB, rows of 256 pixels
             for (unsigned y = 0; y < XIFB_CUR_DIM; y++)
@@ -343,7 +361,8 @@ public:
                     gRegs = nullptr; fMmio = m; fR = (volatile uint32_t *)m->getVirtualAddress();
                 }
         }
-        if (!curSetup()) fCurReady = false;
+        fCurWanted = curAlloc(); fCurReady = false;
+        if (fCurWanted) curArm();   // ready at once where the firmware framebuffer is clear of the cursor pages
         return IONDRVFramebuffer::start(provider);
     }
     bool hasDDCConnect(IOIndex ci) override { return fEdidLen ? true : IONDRVFramebuffer::hasDDCConnect(ci); }
